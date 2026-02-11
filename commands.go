@@ -34,5 +34,5 @@ func (c *Commands) Run(s *State, cmd Command) error {
 }
 
 func (c *Commands) register(name string, f func(*State, Command) error) {
-
+	c.commands[name] = f
 }

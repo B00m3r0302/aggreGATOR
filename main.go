@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/B00m3r0302/aggreGATOR/internal/config"
 )
@@ -12,6 +13,33 @@ func main() {
 	cfg, err := config.Read()
 	if err != nil {
 		log.Fatalf("Error reading config: %v", err)
+	}
+
+	state := &State{
+		cfg: cfg,
+	}
+
+	commands := &Commands{}
+
+	commands.register("login", handlerLogin)
+
+	arguments := os.Args
+
+	if len(arguments) < 2 {
+		fmt.Println("Not enough arguments. Usage: aggreGATOR <command>")
+		os.Exit(1)
+	}
+	var commandArguments *Command
+
+	if len(arguments) >= 3 {
+		commandArguments = &Command{
+			Name: arguments[1],
+			Args: arguments[2:],
+		}
+	} else {
+		commandArguments = &Command{
+			Name: arguments[1],
+		}
 	}
 
 	// Set the current user
