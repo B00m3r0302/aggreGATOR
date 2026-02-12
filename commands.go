@@ -1,6 +1,13 @@
 package main
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"github.com/B00m3r0302/aggreGATOR/internal/database"
+	"github.com/google/uuid"
+	"os"
+	"time"
+)
 
 type Command struct {
 	Name string
@@ -8,8 +15,8 @@ type Command struct {
 }
 
 func handlerLogin(s *State, cmd Command) error {
-	if len(cmd.Args) == 0 {
-		return fmt.Errorf("login command requires a username or at least one value after the 'login' command")
+	if len(cmd.Args) != 1 {
+		return fmt.Errorf("login command requires a username")
 	}
 
 	username := cmd.Args[0]
@@ -18,6 +25,46 @@ func handlerLogin(s *State, cmd Command) error {
 	}
 	fmt.Printf("Successfully set user to %s\n", username)
 	return nil
+}
+
+func handlerRegister(s *State, cmd Command) error {
+	if len(cmd.Args) != 1 {
+		return fmt.Errorf("register command requires a username")
+	}
+
+	username := cmd.Args[0]
+	uuidVal := uuid.New()
+	nowTime := time.Now().UTC()
+
+	sameName, err := s.db.GetUser(context.Background(), username)
+	if err == nil {
+		fmt.Printf("User %s already exists!\nChoose another name: %v", sameName, err)
+		os.Exit(1)
+	}
+
+	databaseUser := database.CreateUserParams{
+		ID:        uuidVal,
+		CreatedAt: nowTime,
+		UpdatedAt: nowTime,
+		Name:      username,
+	}
+
+	created, err := s.db.CreateUser(context.Background(), databaseUser)
+	if err != nil {
+		errorMsg := fmt.Errorf("failed to create user: %w", err)
+		return errorMsg
+	}
+
+	err = s.cfg.SetUser(created.Name)
+	if err != nil {
+		errorMsg := fmt.Errorf("failed to set user: %w", err)
+		return errorMsg
+	}
+
+	fmt.Printf("Successfully set user to %s\nID: %s\nCreated at: %s\nUpdated at: %s\nName: %s\n", created.Name, created.ID, created.CreatedAt, created.UpdatedAt, created.Name)
+
+	return nil
+
 }
 
 type Commands struct {
