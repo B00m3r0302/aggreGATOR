@@ -12,7 +12,7 @@ func handlerLogin(s *State, cmd Command) error {
 		return fmt.Errorf("login command requires a username or at least one value after the 'login' command")
 	}
 
-	username := cmd.Args[1]
+	username := cmd.Args[0]
 	if err := s.cfg.SetUser(username); err != nil {
 		return fmt.Errorf("failed to set user: %w", err)
 	}
@@ -29,10 +29,14 @@ func (c *Commands) Run(s *State, cmd Command) error {
 	if !ok {
 		return fmt.Errorf("unknown command: %s", cmd.Name)
 	}
-	handler(s, cmd)
+	err := handler(s, cmd)
+	if err != nil {
+		errorMsg := fmt.Errorf("error running command %s: %w", cmd.Name, err)
+		return errorMsg
+	}
 	return nil
 }
 
-func (c *Commands) register(name string, f func(*State, Command) error) {
+func (c *Commands) Register(name string, f func(*State, Command) error) {
 	c.commands[name] = f
 }
