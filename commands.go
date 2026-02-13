@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/B00m3r0302/aggreGATOR/internal/database"
-	"github.com/google/uuid"
 	"os"
 	"time"
+
+	"github.com/B00m3r0302/aggreGATOR/internal/database"
+	"github.com/google/uuid"
 )
 
 type Command struct {
@@ -16,12 +17,22 @@ type Command struct {
 
 func handlerLogin(s *State, cmd Command) error {
 	if len(cmd.Args) != 1 {
-		return fmt.Errorf("login command requires a username")
+		return fmt.Errorf("login command requires a username \n")
 	}
 
 	username := cmd.Args[0]
+	nameExists, err := s.db.GetUser(context.Background(), username)
+	if err != nil {
+		if username == "unknown" {
+			fmt.Println("Username unknown doesn't exist and you can't login without registering\n")
+			os.Exit(1)
+		}
+		fmt.Printf("Username doesn't exist and you can't login without %s registering\n", nameExists.Name)
+		os.Exit(1)
+	}
+
 	if err := s.cfg.SetUser(username); err != nil {
-		return fmt.Errorf("failed to set user: %w", err)
+		return fmt.Errorf("failed to set user: %w \n", err)
 	}
 	fmt.Printf("Successfully set user to %s\n", username)
 	return nil
@@ -29,7 +40,7 @@ func handlerLogin(s *State, cmd Command) error {
 
 func handlerRegister(s *State, cmd Command) error {
 	if len(cmd.Args) != 1 {
-		return fmt.Errorf("register command requires a username")
+		return fmt.Errorf("register command requires a username\n")
 	}
 
 	username := cmd.Args[0]
@@ -38,7 +49,7 @@ func handlerRegister(s *State, cmd Command) error {
 
 	sameName, err := s.db.GetUser(context.Background(), username)
 	if err == nil {
-		fmt.Printf("User %s already exists!\nChoose another name: %v", sameName, err)
+		fmt.Printf("User %s already exists!\nChoose another name\n", sameName.Name)
 		os.Exit(1)
 	}
 
@@ -51,13 +62,13 @@ func handlerRegister(s *State, cmd Command) error {
 
 	created, err := s.db.CreateUser(context.Background(), databaseUser)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to create user: %w", err)
+		errorMsg := fmt.Errorf("failed to create user: %w \n", err)
 		return errorMsg
 	}
 
 	err = s.cfg.SetUser(created.Name)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to set user: %w", err)
+		errorMsg := fmt.Errorf("failed to set user: %w \n", err)
 		return errorMsg
 	}
 
@@ -65,6 +76,39 @@ func handlerRegister(s *State, cmd Command) error {
 
 	return nil
 
+}
+
+func handlerReset(s *State, cmd Command) error {
+	if cmd.Name == "reset" {
+		err := s.db.Reset(context.Background())
+		if err != nil {
+			fmt.Printf("failed to reset database: %w \n", err)
+			os.Exit(1)
+		}
+	}
+	return nil
+}
+
+func handlerUsers(s *State, cmd Command) error {
+	if cmd.Name != "users" {
+		fmt.Println("Try again with users command")
+		os.Exit(1)
+	}
+	users, err := s.db.GetAllUsers(context.Background())
+	if err != nil {
+		fmt.Printf("failed to get all users\n %w\n", err)
+		os.Exit(1)
+	}
+
+	for _, user := range users {
+		if user == s.cfg.CurrentUserName {
+			fmt.Printf("%s (current)\n", user)
+		} else {
+			fmt.Printf("%s\n", user)
+		}
+
+	}
+	return nil
 }
 
 type Commands struct {

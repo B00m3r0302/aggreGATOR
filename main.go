@@ -3,9 +3,10 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/lib/pq"
 	"log"
 	"os"
+
+	_ "github.com/lib/pq"
 
 	"github.com/B00m3r0302/aggreGATOR/internal/config"
 	"github.com/B00m3r0302/aggreGATOR/internal/database"
@@ -19,10 +20,6 @@ func main() {
 		log.Fatalf("Error reading config: %v", err)
 	}
 
-	state := &State{
-		cfg: cfg,
-	}
-
 	db, err := sql.Open("postgres", cfg.DbUrl)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
@@ -30,10 +27,17 @@ func main() {
 	defer db.Close()
 
 	dbQueries := database.New(db)
+	state := &State{
+		cfg: cfg,
+		db:  dbQueries,
+	}
 
 	cmds := &Commands{commands: make(map[string]func(*State, Command) error)}
 
 	cmds.Register("login", handlerLogin)
+	cmds.Register("register", handlerRegister)
+	cmds.Register("reset", handlerReset)
+	cmds.Register("users", handlerUsers)
 
 	arguments := os.Args
 
@@ -60,11 +64,6 @@ func main() {
 		fmt.Println(errorMessage)
 		os.Exit(1)
 	}
-
-	// Print the contents
-	fmt.Printf("Config contents:\n")
-	fmt.Printf("  DB URL: %s\n", cfg.DbUrl)
-	fmt.Printf("  Current User: %s\n", cfg.CurrentUserName)
 }
 
 type State struct {
