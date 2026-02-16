@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/B00m3r0302/aggreGATOR/internal/database"
+	"github.com/B00m3r0302/aggreGATOR/internal/rss"
 	"github.com/google/uuid"
 )
 
@@ -108,6 +109,17 @@ func handlerUsers(s *State, cmd Command) error {
 		}
 
 	}
+	return nil
+}
+
+func handlerAgg(s *State, cmd Command) error {
+	// if len(cmd.Args) == 0 {
+	//	fmt.Println("Try again with an argument after agg command")
+	//	os.Exit(1)
+	// }
+
+	// rss.FetchFeed(context.Background(), cmd.Args[0])
+	rss.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
 	return nil
 }
 
