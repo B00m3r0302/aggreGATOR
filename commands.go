@@ -123,6 +123,29 @@ func handlerAgg(s *State, cmd Command) error {
 	return nil
 }
 
+func handlerAddFeed(s *State, cmd Command) error {
+	// Check args length
+	if len(cmd.Args) != 2 {
+		fmt.Println("Try again with two arguments after addFeed command <name> <url>")
+		os.Exit(1)
+	}
+
+	// Get current user
+	users, err := s.db.GetAllUsers(context.Background())
+	if err != nil {
+		fmt.Printf("failed to get all users\n %w\n", err)
+		os.Exit(1)
+	}
+	var currentUser string
+	for _, user := range users {
+		if user == s.cfg.CurrentUserName {
+			currentUser = user
+		}
+	}
+
+	return nil
+}
+
 type Commands struct {
 	commands map[string]func(*State, Command) error
 }
