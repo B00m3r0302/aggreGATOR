@@ -130,19 +130,25 @@ func handlerAddFeed(s *State, cmd Command) error {
 		os.Exit(1)
 	}
 
-	// Get current user
-	users, err := s.db.GetAllUsers(context.Background())
+	// Get current user_id
+	currentUser := s.cfg.CurrentUserName
+	user_id, err := s.db.GetUser(context.Background(), currentUser)
 	if err != nil {
-		fmt.Printf("failed to get all users\n %w\n", err)
+		fmt.Printf("failed to get id for %s\n %w\n", currentUser, err)
 		os.Exit(1)
 	}
-	var currentUser string
-	for _, user := range users {
-		if user == s.cfg.CurrentUserName {
-			currentUser = user
-		}
+
+	// add feed struct
+	addFeedStruct := database.AddFeedParams{
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		Name:      cmd.Args[0],
+		Url:       cmd.Args[1],
+		UserID:    user_id,
 	}
 
+	// insert record
+	da_feed, err := s.db.AddFeed(context.Background())
 	return nil
 }
 
