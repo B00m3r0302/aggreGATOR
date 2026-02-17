@@ -1,2 +1,2 @@
 -- name: GetUser :one
-SELECT * FROM users WHERE name = $1;
+SELECT id FROM users WHERE name = $1;

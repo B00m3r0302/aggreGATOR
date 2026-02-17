@@ -28,7 +28,7 @@ func handlerLogin(s *State, cmd Command) error {
 			fmt.Println("Username unknown doesn't exist and you can't login without registering\n")
 			os.Exit(1)
 		}
-		fmt.Printf("Username doesn't exist and you can't login without %s registering\n", nameExists.Name)
+		fmt.Printf("Username doesn't exist and you can't login without %s registering\n", nameExists)
 		os.Exit(1)
 	}
 
@@ -50,7 +50,7 @@ func handlerRegister(s *State, cmd Command) error {
 
 	sameName, err := s.db.GetUser(context.Background(), username)
 	if err == nil {
-		fmt.Printf("User %s already exists!\nChoose another name\n", sameName.Name)
+		fmt.Printf("User %s already exists!\nChoose another name\n", sameName)
 		os.Exit(1)
 	}
 
@@ -126,13 +126,12 @@ func handlerAgg(s *State, cmd Command) error {
 func handlerAddFeed(s *State, cmd Command) error {
 	// Check args length
 	if len(cmd.Args) != 2 {
-		fmt.Println("Try again with two arguments after addFeed command <name> <url>")
-		os.Exit(1)
+		fmt.Errorf("addfeed command requires two arguments: feed name and feed url")
 	}
 
 	// Get current user_id
 	currentUser := s.cfg.CurrentUserName
-	user_id, err := s.db.GetUser(context.Background(), currentUser)
+	userId, err := s.db.GetUserId(context.Background(), currentUser)
 	if err != nil {
 		fmt.Printf("failed to get id for %s\n %w\n", currentUser, err)
 		os.Exit(1)
@@ -140,15 +139,33 @@ func handlerAddFeed(s *State, cmd Command) error {
 
 	// add feed struct
 	addFeedStruct := database.AddFeedParams{
+		ID:        uuid.New(),
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 		Name:      cmd.Args[0],
 		Url:       cmd.Args[1],
-		UserID:    user_id,
+		UserID:    userId,
 	}
 
 	// insert record
-	da_feed, err := s.db.AddFeed(context.Background())
+	da_feed, err := s.db.AddFeed(context.Background(), addFeedStruct)
+	if err != nil {
+		fmt.Printf("failed to add feed\n %w\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Successfully added feed %v\n", da_feed)
+	return nil
+}
+
+func handlerFeeds(s *State, cmd Command) error {
+	feeds, err := s.db.GetUserFeeds(context.Background())
+	if err != nil {
+		fmt.Printf("failed to get feeds\n %w\n", err)
+		os.Exit(1)
+	}
+	for _, feed := range feeds {
+		fmt.Printf("%v\n", feed)
+	}
 	return nil
 }
 
