@@ -153,6 +153,13 @@ func handlerAddFeed(s *State, cmd Command) error {
 		fmt.Printf("failed to add feed\n %w\n", err)
 		os.Exit(1)
 	}
+
+	err = handlerFollow(s, Command{"follow", []string{cmd.Args[1]}})
+	if err != nil {
+		fmt.Printf("failed to follow feed\n %w\n", err)
+		os.Exit(1)
+	}
+
 	fmt.Printf("Successfully added feed %v\n", da_feed)
 	return nil
 }
@@ -209,7 +216,21 @@ func handlerFollow(s *State, cmd Command) error {
 }
 
 func handlerFollowing(s *State, cmd Command) error {
+	userId, err := s.db.GetUserId(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		fmt.Printf("failed to get id for %s\n %w\n", s.cfg.CurrentUserName, err)
+		os.Exit(1)
+	}
 
+	follows, err := s.db.GetFeedFollowsForUser(context.Background(), userId)
+	if err != nil {
+		fmt.Printf("failed to get feed follows for %s\n %w\n", s.cfg.CurrentUserName, err)
+		os.Exit(1)
+	}
+
+	for _, f := range follows {
+		fmt.Println(f.FeedName)
+	}
 	return nil
 }
 
