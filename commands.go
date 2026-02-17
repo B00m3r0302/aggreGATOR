@@ -22,7 +22,7 @@ func handlerLogin(s *State, cmd Command) error {
 	}
 
 	username := cmd.Args[0]
-	nameExists, err := s.db.GetUser(context.Background(), username)
+	nameExists, err := s.db.GetUserId(context.Background(), username)
 	if err != nil {
 		if username == "unknown" {
 			fmt.Println("Username unknown doesn't exist and you can't login without registering\n")
@@ -48,7 +48,7 @@ func handlerRegister(s *State, cmd Command) error {
 	uuidVal := uuid.New()
 	nowTime := time.Now().UTC()
 
-	sameName, err := s.db.GetUser(context.Background(), username)
+	sameName, err := s.db.GetUserId(context.Background(), username)
 	if err == nil {
 		fmt.Printf("User %s already exists!\nChoose another name\n", sameName)
 		os.Exit(1)
@@ -123,7 +123,7 @@ func handlerAgg(s *State, cmd Command) error {
 	return nil
 }
 
-func handlerAddFeed(s *State, cmd Command) error {
+func handlerAddFeed(s *State, cmd Command, user database.User) error {
 	// Check args length
 	if len(cmd.Args) != 2 {
 		fmt.Errorf("addfeed command requires two arguments: feed name and feed url")
@@ -232,6 +232,45 @@ func handlerFollowing(s *State, cmd Command) error {
 		fmt.Println(f.FeedName)
 	}
 	return nil
+}
+
+func handlerUnfollow(s *State, cmd Command, user database.User) error {
+	if len(cmd.Args) != 1 {
+		fmt.Errorf("unfollow command requires one argument: feed url")
+	}
+
+	userId, err := s.db.GetUserId(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		fmt.Printf("failed to get id for %s\n %w\n", s.cfg.CurrentUserName, err)
+		os.Exit(1)
+	}
+
+	url := cmd.Args[0]
+	urlData, err := s.db.QueryByUrl(context.Background(), url)
+	if err != nil {
+		fmt.Printf("failed to get feed id for %s\n %w\n", url, err)
+		os.Exit(1)
+	}
+	feedId := urlData.ID
+
+	params := database.UnfollowFeedParams{
+		FeedID: feedId,
+		UserID: userId,
+	}
+
+	err = s.db.UnfollowFeed(context.Background(), params)
+	return nil
+}
+
+func middlewareLoggedIn(handler func(s *State, cmd Command, user database.User) error) func(*State, Command) error {
+	return func(s *State, cmd Command) error {
+		username, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+		if err != nil {
+			return fmt.Errorf("failed to get user: %w", err)
+		}
+
+		return handler(s, cmd, username)
+	}
 }
 
 type Commands struct {
