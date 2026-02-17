@@ -169,6 +169,50 @@ func handlerFeeds(s *State, cmd Command) error {
 	return nil
 }
 
+func handlerFollow(s *State, cmd Command) error {
+	if len(cmd.Args) != 1 {
+		fmt.Errorf("follow command requires two arguments: feed url")
+	}
+
+	userId, err := s.db.GetUserId(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		fmt.Printf("failed to get id for %s\n %w\n", s.cfg.CurrentUserName, err)
+		os.Exit(1)
+	}
+
+	url := cmd.Args[0]
+	feed, err := s.db.QueryByUrl(context.Background(), url)
+	if err != nil {
+		fmt.Printf("failed to get feed id for %s\n %w\n", url, err)
+		os.Exit(1)
+	}
+
+	feedId := feed.ID
+
+	params := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		UserID:    userId,
+		FeedID:    feedId,
+	}
+
+	feedback, err := s.db.CreateFeedFollow(context.Background(), params)
+	if err != nil {
+		fmt.Printf("failed to create feed follow\n %w\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully followed feed %v for %v\n", feedback.FeedName, feedback.UserName)
+
+	return nil
+}
+
+func handlerFollowing(s *State, cmd Command) error {
+
+	return nil
+}
+
 type Commands struct {
 	commands map[string]func(*State, Command) error
 }
