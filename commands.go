@@ -113,13 +113,35 @@ func handlerUsers(s *State, cmd Command) error {
 }
 
 func handlerAgg(s *State, cmd Command) error {
-	// if len(cmd.Args) == 0 {
-	//	fmt.Println("Try again with an argument after agg command")
-	//	os.Exit(1)
-	// }
+	if len(cmd.Args) != 1 {
+		fmt.Println("Try again with a time argument after agg command")
+		os.Exit(1)
+	}
 
-	// rss.FetchFeed(context.Background(), cmd.Args[0])
-	rss.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	timeBetweenReqs, err := time.ParseDuration(cmd.Args[0])
+	if err != nil {
+		return fmt.Errorf("invalid duration: %w", err)
+	}
+
+	fmt.Printf("Collecting feeds every %v\n", timeBetweenReqs)
+
+	ticker := time.NewTicker(timeBetweenReqs)
+	defer ticker.Stop()
+
+	// Run immediately
+	err = ScrapeFeeds(s, context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to scrape feeds: %w", err)
+	}
+
+	// Then run every tick
+	for range ticker.C {
+		err = ScrapeFeeds(s, context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to scrape feeds: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -271,6 +293,48 @@ func middlewareLoggedIn(handler func(s *State, cmd Command, user database.User) 
 
 		return handler(s, cmd, username)
 	}
+}
+
+func ScrapeFeeds(s *State, ctx context.Context) error {
+	fetchFeedList, err := s.db.GetNextFeedToFetch(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get next feed to fetch: %w", err)
+	}
+
+	if len(fetchFeedList) == 0 {
+		fmt.Println("No feeds to fetch")
+		return nil
+	}
+
+	for _, feedData := range fetchFeedList {
+		fmt.Printf("\nFetching feed: %s\n", feedData.Name)
+		fmt.Printf("URL: %s\n", feedData.Url)
+
+		feed, err := rss.FetchFeed(ctx, feedData.Url)
+		if err != nil {
+			fmt.Printf("Error fetching feed: %v\n", err)
+			continue
+		}
+
+		fmt.Printf("\nFound %d posts:\n", len(feed.Channel.Item))
+		for _, item := range feed.Channel.Item {
+			fmt.Printf("  - %s\n", item.Title)
+		}
+
+		markFeedParams := database.MarkLastFeedFetchedParams{
+			LastFetchedAt: time.Now().UTC(),
+			ID:            feedData.ID,
+		}
+
+		result, err := s.db.MarkLastFeedFetched(ctx, markFeedParams)
+		if err != nil {
+			fmt.Printf("Error marking feed as fetched: %v\n", err)
+		} else {
+			fmt.Printf("\nMarked feed as fetched at: %v\n", result.LastFetchedAt)
+		}
+	}
+
+	return nil
 }
 
 type Commands struct {

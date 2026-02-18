@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const queryByUrl = `-- name: QueryByUrl :one
+const queryById = `-- name: QueryById :one
 SELECT feeds.name AS feed_name,
        feeds.id,
        users.name AS user_name,
@@ -21,16 +21,16 @@ INNER JOIN users ON feeds.user_id = users.id
 WHERE feeds.url = $1
 `
 
-type QueryByUrlRow struct {
+type QueryByIdRow struct {
 	FeedName string
 	ID       uuid.UUID
 	UserName string
 	Url      string
 }
 
-func (q *Queries) QueryByUrl(ctx context.Context, url string) (QueryByUrlRow, error) {
-	row := q.db.QueryRowContext(ctx, queryByUrl, url)
-	var i QueryByUrlRow
+func (q *Queries) QueryById(ctx context.Context, url string) (QueryByIdRow, error) {
+	row := q.db.QueryRowContext(ctx, queryById, url)
+	var i QueryByIdRow
 	err := row.Scan(
 		&i.FeedName,
 		&i.ID,
