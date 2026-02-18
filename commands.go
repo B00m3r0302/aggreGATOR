@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/B00m3r0302/aggreGATOR/internal/database"
@@ -284,6 +286,52 @@ func handlerUnfollow(s *State, cmd Command, user database.User) error {
 	return nil
 }
 
+func handlerBrowse(s *State, cmd Command) error {
+	limit := int32(2)
+	if len(cmd.Args) > 0 {
+		var parsedLimit int
+		_, err := fmt.Sscanf(cmd.Args[0], "%d", &parsedLimit)
+		if err != nil {
+			return fmt.Errorf("invalid limit: %w", err)
+		}
+		limit = int32(parsedLimit)
+	}
+
+	userId, err := s.db.GetUserId(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		return fmt.Errorf("failed to get user id: %w", err)
+	}
+
+	posts, err := s.db.GetPostsForUser(context.Background(), database.GetPostsForUserParams{
+		UserID: userId,
+		Limit:  limit,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get posts: %w", err)
+	}
+
+	if len(posts) == 0 {
+		fmt.Println("No posts found")
+		return nil
+	}
+
+	fmt.Printf("\nShowing %d posts:\n", len(posts))
+	for _, post := range posts {
+		fmt.Printf("\n---\n")
+		fmt.Printf("Title: %s\n", post.Title)
+		fmt.Printf("URL: %s\n", post.Url)
+		if post.Description.Valid {
+			fmt.Printf("Description: %s\n", post.Description.String)
+		}
+		if post.PublishedAt.Valid {
+			fmt.Printf("Published: %s\n", post.PublishedAt.Time.Format("2006-01-02 15:04:05"))
+		}
+	}
+	fmt.Printf("\n---\n")
+
+	return nil
+}
+
 func middlewareLoggedIn(handler func(s *State, cmd Command, user database.User) error) func(*State, Command) error {
 	return func(s *State, cmd Command) error {
 		username, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
@@ -293,6 +341,28 @@ func middlewareLoggedIn(handler func(s *State, cmd Command, user database.User) 
 
 		return handler(s, cmd, username)
 	}
+}
+
+func parsePublishedAt(pubDate string) sql.NullTime {
+	// Try common RSS date formats
+	formats := []string{
+		time.RFC1123Z,
+		time.RFC1123,
+		time.RFC822Z,
+		time.RFC822,
+		"2006-01-02T15:04:05Z07:00", // ISO 8601
+		"2006-01-02 15:04:05",
+	}
+
+	for _, format := range formats {
+		t, err := time.Parse(format, pubDate)
+		if err == nil {
+			return sql.NullTime{Time: t, Valid: true}
+		}
+	}
+
+	// If we can't parse the date, return null
+	return sql.NullTime{Valid: false}
 }
 
 func ScrapeFeeds(s *State, ctx context.Context) error {
@@ -316,10 +386,38 @@ func ScrapeFeeds(s *State, ctx context.Context) error {
 			continue
 		}
 
-		fmt.Printf("\nFound %d posts:\n", len(feed.Channel.Item))
+		fmt.Printf("Found %d posts\n", len(feed.Channel.Item))
+
+		savedCount := 0
 		for _, item := range feed.Channel.Item {
-			fmt.Printf("  - %s\n", item.Title)
+			publishedAt := parsePublishedAt(item.PubDate)
+
+			postParams := database.CreatePostParams{
+				ID:          uuid.New(),
+				CreatedAt:   time.Now().UTC(),
+				UpdatedAt:   time.Now().UTC(),
+				Title:       item.Title,
+				Url:         item.Link,
+				Description: sql.NullString{String: item.Description, Valid: item.Description != ""},
+				PublishedAt: publishedAt,
+				FeedID:      feedData.ID,
+			}
+
+			_, err := s.db.CreatePost(ctx, postParams)
+			if err != nil {
+				// Check if it's a duplicate URL error
+				if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "UNIQUE constraint") {
+					// Silently ignore duplicate posts
+					continue
+				}
+				// Log other errors
+				fmt.Printf("  Error saving post '%s': %v\n", item.Title, err)
+			} else {
+				savedCount++
+			}
 		}
+
+		fmt.Printf("Saved %d new posts\n", savedCount)
 
 		markFeedParams := database.MarkLastFeedFetchedParams{
 			LastFetchedAt: time.Now().UTC(),
@@ -330,7 +428,7 @@ func ScrapeFeeds(s *State, ctx context.Context) error {
 		if err != nil {
 			fmt.Printf("Error marking feed as fetched: %v\n", err)
 		} else {
-			fmt.Printf("\nMarked feed as fetched at: %v\n", result.LastFetchedAt)
+			fmt.Printf("Marked feed as fetched at: %v\n", result.LastFetchedAt)
 		}
 	}
 
